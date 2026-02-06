@@ -14,3 +14,7 @@ __marimo__
 
 # Data files
 data/
+
+# MLFlow
+mlruns/
+mlflow.db

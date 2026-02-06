@@ -1,6 +1,6 @@
 import marimo
 
-__generated_with = "0.19.7"
+__generated_with = "0.19.8"
 app = marimo.App(width="columns")
 
 with app.setup:
@@ -9,27 +9,10 @@ with app.setup:
     import geopandas as gpd
     import numpy as np
     import matplotlib.pyplot as plt
-    import seaborn as sns
     from shapely import wkt
     import altair as alt
 
     from typing import Literal, Optional
-
-
-@app.cell(hide_code=True)
-def _():
-    mo.md(r"""
-    # Turbine Centered Approach
-
-    Instead of finding each sale and distance to a turbine,
-    Find each turbine and find the houses in a radius around for comparisons.
-
-    This will give a more accurate estimate on each individual turbines impact.
-
-
-    Once we know the impact radius and effect, we can compare effects, sizes, build time, and location of turbines.
-    """)
-    return
 
 
 @app.cell(column=1, hide_code=True)
@@ -42,14 +25,43 @@ def _():
 
 @app.cell
 def _():
-    sales_next = get_comparative_sales_with_turbine(on="next", months_of_effect=24, radius_m=5000)
+    sales_next = get_comparative_sales_with_turbine(
+        on="next", months_of_effect=24, radius_m=5000
+    )
     sales_next
     return
 
 
 @app.cell
 def _():
-    sales_all = get_comparative_sales_with_turbine(on="all", months_of_effect=24, radius_m=5000)
+    sales_all = get_comparative_sales_with_turbine(
+        on="all", months_of_effect=24, radius_m=5000
+    )
+    sales_all.drop(
+        columns=[
+            "geometry",
+            "salgs_dato",
+            "salgs_dato_prev",
+            "vurderingsaar",
+            "byg038SamletBygningsAreal_prev",
+            "byg039BygningensSamlBoligAreal_prev",
+            "house_geometry_original",
+            "tilslutning_dato",
+            "date_of_effect",
+            "BFEnummer",
+            "byg038SamletBygningsAreal",
+            "byg039BygningensSamlBoligAreal",
+            "GrundvaerdiBeloeb",
+            "GrundvaerdiBeloeb_prev",
+            "EjendomvaerdiBeloeb",
+            "EjendomvaerdiBeloeb_prev",
+            "SamletKoebesum_prev",
+            "VURderetAreal",
+            "VURderetAreal_prev",
+        ],
+        inplace=True,
+    )
+    sales_all.dropna(inplace=True)
     sales_all
     return
 
@@ -109,9 +121,7 @@ class HouseSales:
 
     def _to_geodataframe(self) -> gpd.GeoDataFrame:
         _geometry_column = "byg404Koordinat"
-        self._df[_geometry_column] = self._df[_geometry_column].apply(
-            wkt.loads
-        )
+        self._df[_geometry_column] = self._df[_geometry_column].apply(wkt.loads)
 
         _data_gdf = gpd.GeoDataFrame(
             self._df,
@@ -146,7 +156,8 @@ class HouseSales:
 
     def get_houses_with_multiple_sales(self) -> gpd.GeoDataFrame:
         """
-        Get houses that have been sold multiple times, and drop rows without sale price"""
+        Get houses that have been sold multiple times, and drop rows without sale price
+        """
         _bfe_count = self.gdf["BFEnummer"].value_counts()
         _bfe_more_than_two = _bfe_count[_bfe_count > 1].index
         gdf_multiple_sales = self.gdf[
@@ -162,9 +173,7 @@ class ComparativeHouseSales:
     def __init__(self, house_sales: gpd.GeoDataFrame):
         self.house_sales = house_sales
 
-    def compare(
-        self, on: Optional[Literal["next", "all"]]
-    ) -> gpd.GeoDataFrame:
+    def compare(self, on: Optional[Literal["next", "all"]]) -> gpd.GeoDataFrame:
         """
         Compare sales of the same house to analyze price development.
         Parameters:
@@ -201,8 +210,7 @@ class ComparativeHouseSales:
 
         # Calculate growth rate and time difference
         _df_all_pairs["growth_rate"] = (
-            _df_all_pairs["SamletKoebesum"]
-            - _df_all_pairs["SamletKoebesum_prev"]
+            _df_all_pairs["SamletKoebesum"] - _df_all_pairs["SamletKoebesum_prev"]
         ) / _df_all_pairs["SamletKoebesum_prev"]
 
         _df_all_pairs["years_diff"] = (
@@ -218,9 +226,7 @@ class ComparativeHouseSales:
         """
 
         # 1. Sort and assign a "Rank" to each sale (0 for first sale, 1 for second, etc.)
-        _df = self.house_sales.sort_values(
-            by=["BFEnummer", "salgs_dato"]
-        ).copy()
+        _df = self.house_sales.sort_values(by=["BFEnummer", "salgs_dato"]).copy()
         _df["sale_rank"] = _df.groupby("BFEnummer").cumcount()
 
         # 2. Perform the merge strictly on (BFEnummer) and (Rank vs Rank-1)
@@ -321,9 +327,7 @@ class Turbines:
 
     def _handle_datetime(self) -> None:
         self.gdf["afmelding_dato"] = pd.to_datetime(self.gdf["afmelding_dato"])
-        self.gdf["tilslutning_dato"] = pd.to_datetime(
-            self.gdf["tilslutning_dato"]
-        )
+        self.gdf["tilslutning_dato"] = pd.to_datetime(self.gdf["tilslutning_dato"])
 
     def _drop_cols(self, columns: list[str] = None):
         self.gdf.dropna(subset=["x", "y"], inplace=True)
@@ -342,9 +346,7 @@ def _():
 
 @app.class_definition
 class Preprocessor:
-    def __init__(
-        self, house_sales: gpd.GeoDataFrame, turbines: gpd.GeoDataFrame
-    ):
+    def __init__(self, house_sales: gpd.GeoDataFrame, turbines: gpd.GeoDataFrame):
         self.house_sales = house_sales
         self.turbines = turbines
 
@@ -365,7 +367,8 @@ class Preprocessor:
         - months_of_effect: The number of months to offset the turbine activation date to account for pre-activation effects on house prices.
 
         Returns:
-        - A GeoDataFrame with the nearest activated turbine information merged for each house sale."""
+        - A GeoDataFrame with the nearest activated turbine information merged for each house sale.
+        """
 
         turbines = self._offset_impact(
             turbines=self.turbines.copy(), months=months_of_effect
@@ -378,9 +381,7 @@ class Preprocessor:
         )
         valid_candidates = self._filter_active_turbines(turbines=candidates)
 
-        nearest_new_turbine = self._get_nearest_turbine(
-            candidates=valid_candidates
-        )
+        nearest_new_turbine = self._get_nearest_turbine(candidates=valid_candidates)
 
         # 8. Merge Result: Join the distance and turbine ID back to your original dataset
         final_df = houses_search.join(
@@ -407,9 +408,9 @@ class Preprocessor:
         """Offset the turbine activation date to account for the fact that turbine announcements and construction can affect house prices even before the turbine is fully operational. This creates a "date of effect" that is earlier than the actual activation date."""
         # Assume turbine activation would affect house prices even before activation date.
         # As soon as a turbine location has been announced, it is assumed to affect house prices
-        turbines["date_of_effect"] = turbines[
-            "tilslutning_dato"
-        ] - pd.DateOffset(months=months)
+        turbines["date_of_effect"] = turbines["tilslutning_dato"] - pd.DateOffset(
+            months=months
+        )
 
         return turbines
 
@@ -438,11 +439,10 @@ class Preprocessor:
 
         return candidates
 
-    def _get_nearest_turbine(
-        self, candidates: gpd.GeoDataFrame
-    ) -> gpd.GeoDataFrame:
+    def _get_nearest_turbine(self, candidates: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
         """
-        For each house sale, find the nearest turbine that was activated in the relevant time window."""
+        For each house sale, find the nearest turbine that was activated in the relevant time window.
+        """
         # 6. Calculate Distance: House Point <-> Turbine Point
         # We use the preserved geometries
         candidates["dist_to_new_turbine"] = candidates[
@@ -452,9 +452,7 @@ class Preprocessor:
         # 7. Select Nearest: Sort by distance and keep only the closest per house sale row
         # Grouping by the index of the original houses dataframe ensures we map correctly
         nearest_new_turbine = (
-            candidates.sort_values("dist_to_new_turbine")
-            .groupby(level=0)
-            .head(1)
+            candidates.sort_values("dist_to_new_turbine").groupby(level=0).head(1)
         )
 
         return nearest_new_turbine
