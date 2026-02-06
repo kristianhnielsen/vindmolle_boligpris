@@ -8,3 +8,9 @@ wheels/
 
 # Virtual environments
 .venv
+
+# Marimo files
+__marimo__
+
+# Data files
+data/
