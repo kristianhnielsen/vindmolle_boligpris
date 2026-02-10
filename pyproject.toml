@@ -22,4 +22,6 @@ dependencies = [
     "vegafusion>=2.0.3",
     "vl-convert-python>=1.9.0.post1",
     'shap>=0.50.0',
+    "optuna>=4.7.0",
+    "optuna-integration>=4.7.0",
 ]
