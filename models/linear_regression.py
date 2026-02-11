@@ -1,5 +1,6 @@
 import geopandas as gpd
-from experiment_tracking import find_and_register_best_model
+from experiment_tracking import ExperimentTracker
+from data_handler import DataHandler
 from preprocessing import get_comparative_sales_with_turbine
 from sklearn.linear_model import Ridge
 from sklearn.metrics import mean_squared_error, r2_score
@@ -7,75 +8,12 @@ from sklearn.preprocessing import StandardScaler
 from sklearn.model_selection import train_test_split, cross_val_score
 import mlflow
 import optuna
-import warnings
-import logging
 import chime
-import json
-from datetime import datetime
-from pathlib import Path
-
-# Suppress MLflow warnings
-warnings.filterwarnings("ignore", module="mlflow")
-warnings.filterwarnings("ignore", category=FutureWarning, module="mlflow")
-warnings.filterwarnings("ignore", category=UserWarning, module="mlflow")
-
-# Suppress MLflow logging
-logging.getLogger("mlflow").setLevel(logging.ERROR)
 
 chime.theme("mario")  # Set a fun theme for notifications
 
 
-def feature_engineering(data):
-
-    # Prepare features and target variable
-
-    data["days_since_assessment"] = (
-        data["salgs_dato"] - data["vurderingsaar"]
-    ).dt.days  # type: ignore
-    data["grundvaerdi_diff"] = (
-        data["GrundvaerdiBeloeb"] - data["GrundvaerdiBeloeb_prev"]
-    )
-    data["ejendomvaerdi_diff"] = (
-        data["EjendomvaerdiBeloeb"] - data["EjendomvaerdiBeloeb_prev"]
-    )
-    # data["koebesum_diff"] = data["SamletKoebesum"] - data["SamletKoebesum_prev"]
-    data["vurderet_areal_diff"] = data["VURderetAreal"] - data["VURderetAreal_prev"]
-
-    data.drop(
-        columns=[
-            "geometry",
-            "salgs_dato",
-            "salgs_dato_prev",
-            "vurderingsaar",
-            "byg038SamletBygningsAreal_prev",
-            "byg039BygningensSamlBoligAreal_prev",
-            "house_geometry_original",
-            "tilslutning_dato",
-            "date_of_effect",
-            "BFEnummer",
-            "byg038SamletBygningsAreal",
-            "byg039BygningensSamlBoligAreal",
-            "GrundvaerdiBeloeb",
-            "GrundvaerdiBeloeb_prev",
-            "EjendomvaerdiBeloeb",
-            "EjendomvaerdiBeloeb_prev",
-            "SamletKoebesum_prev",
-            "VURderetAreal",
-            "VURderetAreal_prev",
-            "growth_rate",
-        ],
-        inplace=True,
-    )
-    data.dropna(inplace=True)  # Drop rows with missing values
-
-    scaler = StandardScaler()
-    feature_cols = data.columns.difference(["SamletKoebesum"])
-    data[feature_cols] = scaler.fit_transform(data[feature_cols])
-
-    return data
-
-
-def objective(trial: optuna.Trial, data: gpd.GeoDataFrame):
+def objective(trial: optuna.Trial, X, y):
 
     # Start a new MLflow run for each trial
     with mlflow.start_run(nested=True):
@@ -97,6 +35,7 @@ def objective(trial: optuna.Trial, data: gpd.GeoDataFrame):
         )
         alpha = trial.suggest_float("alpha", 0.1, 10.0)
         solver_ignores_tol = solver in ["svd", "cholesky"]
+        positive = trial.suggest_categorical("positive", [True, False])
 
         mlflow.log_params(
             {
@@ -107,16 +46,16 @@ def objective(trial: optuna.Trial, data: gpd.GeoDataFrame):
                 "random_state": random_state,
                 "solver_ignores_tol": solver_ignores_tol,
                 "trial_number": trial.number,
+                "positive": positive,
             }
         )
 
         try:
-            X, y = x_y_split(data)
             X_train, X_test, y_train, y_test = train_test_split(
                 X, y, test_size=test_split, random_state=random_state
             )
 
-            model = Ridge(tol=tolerance, solver=solver, alpha=alpha)  # type: ignore
+            model = Ridge(tol=tolerance, solver=solver, alpha=alpha, positive=positive)  # type: ignore
             model.fit(X_train, y_train)
         except ValueError as e:
             mlflow.log_param("error", str(e))
@@ -157,37 +96,31 @@ def adjusted_r2_score(y_true, y_pred, n_features):
     return adjusted_r2
 
 
-def x_y_split(data, target="SamletKoebesum"):
-    # Define features and target variable
-    X = data.drop(columns=[target])
-    y = data[target]
-    return X, y
-
-
 if __name__ == "__main__":
     comparison_type = "next"
-    experiment_name = f"Ridge Regression - {comparison_type.capitalize()} Comparisons"
-    mlflow.set_experiment(experiment_name)
-    mlflow.set_experiment_tags(
-        {"model_type": "ridge_regression", "comparison_type": comparison_type}
+    exp_tracker = ExperimentTracker(
+        algorithm="ridge_regression",
+        comparison_type=comparison_type,
     )
-    mlflow.sklearn.autolog()  # type: ignore
 
     # Load the data
-    data = get_comparative_sales_with_turbine(on=comparison_type)
-    data = feature_engineering(data)
+    data_handler = DataHandler()
+    X, y = data_handler.x_y_split(comparison_type=comparison_type)
 
     study = optuna.create_study(direction="minimize")
     study.optimize(
-        lambda trial: objective(trial, data),
+        lambda trial: objective(
+            trial,
+            X,
+            y,
+        ),
         n_trials=1000,
         show_progress_bar=True,
         n_jobs=-1,
     )
 
-    find_and_register_best_model(
-        experiment_name=experiment_name,
-        model_name=f"ridge_regression_{comparison_type}_model",
+    exp_tracker.find_and_register_best_model(
+        experiment_name=exp_tracker.experiment_name
     )
 
     chime.success()  # Notify when the script finishes
