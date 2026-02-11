@@ -24,4 +24,5 @@ dependencies = [
     'shap>=0.50.0',
     "optuna>=4.7.0",
     "optuna-integration>=4.7.0",
+    "chime>=0.7.0",
 ]
