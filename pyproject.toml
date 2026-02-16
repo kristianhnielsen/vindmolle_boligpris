@@ -26,4 +26,5 @@ dependencies = [
     "optuna-integration>=4.7.0",
     "chime>=0.7.0",
     "xgboost>=3.2.0",
+    "torch>=2.10.0",
 ]
