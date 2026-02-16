@@ -80,10 +80,6 @@ class DataHandler:
         )
         data.dropna(inplace=True)  # Drop rows with missing values
 
-        # scaler = StandardScaler()
-        # feature_cols = data.columns.difference([self.target_variable])
-        # data[feature_cols] = scaler.fit_transform(data[feature_cols])
-
         return data
 
     def x_y_split(
@@ -92,6 +88,7 @@ class DataHandler:
         target=None,
         test_size=0.2,
         random_state=42,
+        scale=False,
     ):
         n_splits = 1
 
@@ -116,6 +113,11 @@ class DataHandler:
 
         # Get train and test indices
         train_idx, test_idx = next(gss.split(X, y, groups=groups))
+
+        if scale:
+            scaler = StandardScaler()
+            feature_cols = X.columns.difference([self.target_variable])
+            X[feature_cols] = scaler.fit_transform(X[feature_cols])
 
         X_train, X_test = X.iloc[train_idx], X.iloc[test_idx]
         y_train, y_test = y.iloc[train_idx], y.iloc[test_idx]
