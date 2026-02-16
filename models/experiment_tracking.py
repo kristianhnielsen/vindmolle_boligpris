@@ -1,4 +1,4 @@
-from typing import Literal
+from typing import Any, Literal
 import warnings
 import logging
 import mlflow
@@ -12,12 +12,33 @@ class ExperimentTracker:
         experiment_name: str = "Wind Turbine - House Price Prediction",
     ):
         self._suppress_logging()
+        self.comparison_type = comparison_type
         self.algorithm = algorithm
         self.experiment_name = experiment_name
         mlflow.set_experiment(experiment_name)
         mlflow.autolog()
-        mlflow.log_param("algorithm", self.algorithm)
-        mlflow.log_param("dataset", comparison_type)
+
+    def start_run(
+        self,
+        run_id: str | None = None,
+        experiment_id: str | None = None,
+        run_name: str | None = None,
+        nested: bool = False,
+        parent_run_id: str | None = None,
+        tags: dict[str, Any] | None = None,
+        description: str | None = None,
+        log_system_metrics: bool | None = None,
+    ):
+        return mlflow.start_run(
+            run_id=run_id,
+            experiment_id=experiment_id,
+            run_name=run_name,
+            nested=nested,
+            parent_run_id=parent_run_id,
+            tags=tags,
+            description=description,
+            log_system_metrics=log_system_metrics,
+        )
 
     def _suppress_logging(self):
         # Suppress MLflow warnings
