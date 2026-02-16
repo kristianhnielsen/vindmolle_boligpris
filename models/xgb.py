@@ -128,37 +128,34 @@ def objective(
         # Log the model code as an artifact for reproducibility
         mlflow.log_artifact("models/xgb.py", artifact_path="model_code")
 
-        # Log SHAP plots as artifacts
-        explainer = shap.Explainer(model)
-        shap_values = explainer(X_test)
-
-        plt.figure()
-        shap.plots.beeswarm(shap_values, show=False, max_display=None)
-        shap_beeswarm_plot_path = f"shap_beeswarm_trial_{trial.number}.png"
-        plt.savefig(shap_beeswarm_plot_path, bbox_inches="tight")
-        plt.close()
-        mlflow.log_artifact(shap_beeswarm_plot_path, artifact_path="shap_plots")
-        os.remove(shap_beeswarm_plot_path)  # Clean up the local file
-
-        # SHAP summary plot for overall feature importance
-        plt.figure()
-        shap.plots.scatter(shap_values[:, "dist_to_new_turbine"], show=False)
-        shap_summary_plot_path = f"shap_summary_scatter_trial_{trial.number}.png"
-        plt.savefig(shap_summary_plot_path, bbox_inches="tight")
-        plt.close()
-        mlflow.log_artifact(shap_summary_plot_path, artifact_path="shap_plots")
-        os.remove(shap_summary_plot_path)  # Clean up the local file
-
-        # SHAP bar plot for feature importance
-        plt.figure()
-        shap.plots.bar(shap_values, show=False)
-        shap_bar_plot_path = f"shap_bar_trial_{trial.number}.png"
-        plt.savefig(shap_bar_plot_path, bbox_inches="tight")
-        plt.close()
-        mlflow.log_artifact(shap_bar_plot_path, artifact_path="shap_plots")
-        os.remove(shap_bar_plot_path)  # Clean up the local file
+        generate_shap_plots(model, X_test, trial.number)
 
         return neg_mse_cross_val
+
+
+def generate_shap_plots(model, X_test, trial_number):
+    explainer = shap.Explainer(model)
+    shap_values = explainer(X_test)
+
+    plt.figure()
+    shap.plots.beeswarm(shap_values, show=False, max_display=None)
+    shap_beeswarm_plot_path = f"shap_beeswarm_trial_{trial_number}.png"
+    plt.savefig(shap_beeswarm_plot_path, bbox_inches="tight")
+    plt.close()
+
+    plt.figure()
+    shap.plots.scatter(shap_values[:, "dist_to_new_turbine"], show=False)
+    shap_summary_plot_path = f"shap_scatter_trial_{trial_number}.png"
+    plt.savefig(shap_summary_plot_path, bbox_inches="tight")
+    plt.close()
+
+    plt.figure()
+    shap.plots.bar(shap_values, show=False)
+    shap_bar_plot_path = f"shap_bar_trial_{trial_number}.png"
+    plt.savefig(shap_bar_plot_path, bbox_inches="tight")
+    plt.close()
+
+    return shap_beeswarm_plot_path, shap_summary_plot_path, shap_bar_plot_path
 
 
 if __name__ == "__main__":
