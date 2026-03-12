@@ -10,13 +10,15 @@ class ExperimentTracker:
         algorithm: str,
         comparison_type: Literal["next", "all"],
         experiment_name: str = "Wind Turbine - House Price Prediction",
+        log_model: bool = True,
     ):
         self._suppress_logging()
         self.comparison_type = comparison_type
         self.algorithm = algorithm
         self.experiment_name = experiment_name
+        self.log_model = log_model
         mlflow.set_experiment(experiment_name)
-        mlflow.autolog()
+        mlflow.autolog(log_models=self.log_model)
 
     def start_run(
         self,

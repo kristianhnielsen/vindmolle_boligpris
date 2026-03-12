@@ -27,4 +27,5 @@ dependencies = [
     "chime>=0.7.0",
     "xgboost>=3.2.0",
     "torch>=2.10.0",
+    "contextily>=1.7.0",
 ]
